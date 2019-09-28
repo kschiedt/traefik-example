@@ -1,0 +1,49 @@
+version: "3.7"
+
+networks:
+  internal:
+    external: false
+  proxy:
+    external: true
+
+services:
+  dockersocket:
+    image: tecnativa/docker-socket-proxy
+    restart: always
+    privileged: true
+    networks:
+     - internal
+    ports:
+     - 2375:2375
+    volumes:
+     - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+        CONTAINERS: 1
+  traefik:
+    container_name: traefik
+    image: traefik:latest
+    restart: always
+    depends_on:
+     - dockersocket
+    networks:
+     - internal
+     - proxy
+    ports:
+     - 80:80
+     - 443:443
+    volumes:
+     - ./traefik/static.yml:/etc/traefik/traefik.yml
+     - ./traefik/dynamic.yml:/etc/traefik/dynamic/dynamic.yml
+     - ./traefik/acme/acme.json:/etc/traefik/acme/acme.json
+  web1:
+    container_name: whoami
+    image: containous/whoami
+    networks:
+     - proxy
+    labels:
+     - traefik.enable=true
+     - traefik.http.routers.web1.rule=Host(`$yourdomainhere`)
+     - traefik.http.routers.web1.tls=true
+     - traefik.http.routers.web1.tls.options=default
+     - traefik.http.routers.web1.tls.certresolver=defaultresolver
+     - traefik.http.routers.web1.middlewares=secured@file
